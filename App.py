@@ -112,8 +112,8 @@ class OAuth2:
         r = requests.post(self.tokenURL, data=data, headers={"Authorization": "Basic " + base64.b64encode(self.clientId + ":" + self.clientSecret)})
 
         tokens = json.loads(r.text)
-
-        self.accessToken = tokens["access_tokens"]
+        
+        self.accessToken = tokens["access_token"]
         self.expires = time.time() + tokens["expires_in"]
 
     def authorize(self, scopes):
@@ -178,5 +178,7 @@ if __name__ == "__main__":
  
     auth = OAuth2(Keys.clientId, Keys.clientSecret, authorizationURL, tokenURL)
     auth.authorize(["user-modify-playback-state", "user-read-playback-state", "user-modify-playback-state"])
+
+    auth.refreshAcessToken()
     
     startGSIServer(auth, choseDevice())
