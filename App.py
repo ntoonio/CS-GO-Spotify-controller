@@ -87,7 +87,7 @@ class OAuth2:
  
         server = HTTPServer(("", 4074), MakeGetAuthorizationCodeHandler(self))
        
-       print "Waiting for authorization code"
+        print "Waiting for authorization code"
         while self.authorizationCode == "":
             server.handle_request()
  
