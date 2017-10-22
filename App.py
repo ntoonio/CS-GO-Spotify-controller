@@ -87,6 +87,7 @@ class OAuth2:
  
         server = HTTPServer(("", 4074), MakeGetAuthorizationCodeHandler(self))
        
+       print "Waiting for authorization code"
         while self.authorizationCode == "":
             server.handle_request()
  
@@ -101,6 +102,7 @@ class OAuth2:
  
     def getAccessToken(self, secondTry = False):
         if time.time() >= self.expires and not secondTry:
+            print "Access token expired"
             self.refreshAcessToken()
             return self.getAccessToken(secondTry = True)
 
@@ -116,6 +118,8 @@ class OAuth2:
         self.accessToken = tokens["access_token"]
         self.expires = time.time() + tokens["expires_in"]
 
+        print "Refreshed acceses token"
+
     def authorize(self, scopes):
         self.openAuthorizationURL(scopes)
         tokens = self.getTokens()
@@ -127,22 +131,12 @@ class OAuth2:
 def choseDevice():
     devices = getDevices(auth)
     
-    print "Select a device"
-
-    i = 1
     for d in devices["devices"]:
-        print i, d["name"]
-        i += 1
-    
-    deviceNr = int(raw_input())
-    
-    if deviceNr > len(devices["devices"]):
-        print "Not a valid number"
-        exit()
-
-    return devices["devices"][deviceNr - 1]["id"]
+        if d["is_active"]:
+            return d["id"]
 
 def startGSIServer(oauth, deviceId):
+    print "Starting GSI server"
     server = HTTPServer(("", 27375), MakeGameStateIntegrationHandler(oauth, deviceId))
     
     server.serve_forever()
@@ -165,11 +159,11 @@ def shouldPlay(body):
     return True
 
 def pauseMusic(oauth, device):
-    print "---------- REQUESTING PAUSE -------------"
+    print "Pausing music"
     r = requests.put("https://api.spotify.com/v1/me/player/pause?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
 
 def resumeMusic(oauth, device):
-    print "---------- REQUESTING RESUME -------------"
+    print "Resuming music"
     r = requests.put("https://api.spotify.com/v1/me/player/play?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
  
 if __name__ == "__main__":
@@ -177,6 +171,7 @@ if __name__ == "__main__":
     tokenURL = "https://accounts.spotify.com/api/token"
  
     auth = OAuth2(Keys.clientId, Keys.clientSecret, authorizationURL, tokenURL)
+    print "Authorizing Spotify..."
     auth.authorize(["user-modify-playback-state", "user-read-playback-state", "user-modify-playback-state"])
 
     auth.refreshAcessToken()
