@@ -121,12 +121,34 @@ class OAuth2:
         print "Refreshed acceses token"
 
     def authorize(self, scopes):
-        self.openAuthorizationURL(scopes)
-        tokens = self.getTokens()
+        if self.readTokens():
+            self.refreshAcessToken()
+        else:
+            self.openAuthorizationURL(scopes)
+            tokens = self.getTokens()
 
-        self.accessToken = tokens["access_token"]
-        self.refreshToken = tokens["refresh_token"]
-        self.expires = time.time() + tokens["expires_in"]
+            self.accessToken = tokens["access_token"]
+            self.refreshToken = tokens["refresh_token"]
+            self.expires = time.time() + tokens["expires_in"]
+
+            self.writeToken()
+
+    def writeToken(self):
+        file = open("token.json", "w")
+        data = {"refresh_token": self.refreshToken}
+        json.dump(data, file)
+        file.close()
+
+    def readTokens(self):
+        try:
+            file = open("token.json", "r")
+            data = json.load(file)
+
+            self.refreshToken = data["refresh_token"]
+
+            return True
+        except IOError:
+            return False
 
 def choseDevice():
     devices = getDevices(auth)
@@ -173,7 +195,5 @@ if __name__ == "__main__":
     auth = OAuth2(Keys.clientId, Keys.clientSecret, authorizationURL, tokenURL)
     print "Authorizing Spotify..."
     auth.authorize(["user-modify-playback-state", "user-read-playback-state", "user-modify-playback-state"])
-
-    auth.refreshAcessToken()
     
     startGSIServer(auth, choseDevice())
