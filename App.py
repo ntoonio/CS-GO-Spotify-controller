@@ -152,7 +152,11 @@ class OAuth2:
 
 def choseDevice():
     devices = getDevices(auth)
-    
+     
+    if not "devices" in devices:
+        print "No active devices"
+        exit()
+
     for d in devices["devices"]:
         if d["is_active"]:
             return d["id"]
