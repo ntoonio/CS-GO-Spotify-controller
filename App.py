@@ -1,4 +1,3 @@
-# http://localhost:4074/?code=hasd&hejsan=sd
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 import urlparse
 import time
@@ -172,9 +171,23 @@ def getDevices(oauth2):
 
     return json.loads(r.text)
 
+def pauseMusic(oauth, device):
+    print "Pausing music"
+    r = requests.put("https://api.spotify.com/v1/me/player/pause?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
+
+def resumeMusic(oauth, device):
+    print "Resuming music"
+    r = requests.put("https://api.spotify.com/v1/me/player/play?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
+ 
 def shouldPlay(body):
+    if not "map" in body: # Not in game, prevents errors from trying to access non existing keys in body
+        return
+
     health = body["player"]["state"]["health"]
     roundPhase = body["round"]["phase"]
+
+    if not body["map"]["mode"] == "competitive":
+        return True
 
     if not body["player"]["steamid"] == body["provider"]["steamid"]:
         return True
@@ -184,14 +197,6 @@ def shouldPlay(body):
 
     return True
 
-def pauseMusic(oauth, device):
-    print "Pausing music"
-    r = requests.put("https://api.spotify.com/v1/me/player/pause?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
-
-def resumeMusic(oauth, device):
-    print "Resuming music"
-    r = requests.put("https://api.spotify.com/v1/me/player/play?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
- 
 if __name__ == "__main__":
     authorizationURL = "https://accounts.spotify.com/authorize"
     tokenURL = "https://accounts.spotify.com/api/token"
