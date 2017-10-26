@@ -9,6 +9,14 @@ import json
 import Keys
 
 playingMusic = False
+settings = {
+    "winMusic": {
+        "enabled": True
+    },
+    "refreshToken": {
+        "enabled": True
+    }
+}
 
 def MakeGetAuthorizationCodeHandler(OAuth2Class):
     class GetAuthorizationCodeHandler(BaseHTTPRequestHandler):
@@ -47,16 +55,17 @@ def MakeGameStateIntegrationHandler(OAuth2Class, deviceId):
  
             shouldBePlay = shouldPlay(body)
 
-            if shouldBePlay and not playingMusic:
+            if shouldBePlay == True and not playingMusic:
                 resumeMusic(auth, deviceId)
-            elif not shouldBePlay and playingMusic:
+            elif shouldBePlay == False and playingMusic:
                 pauseMusic(auth, deviceId)
+            elif shouldBePlay == "win" and not playingMusic == "win":
+                playWinMusic(auth, deviceId)
 
             playingMusic = shouldBePlay
 
             self.send_response(200)
             self.end_headers()
-            self.wfile.write("<script>window.close();</script>")
 
             return
  
@@ -119,8 +128,10 @@ class OAuth2:
 
         print "Refreshed acceses token"
 
-    def authorize(self, scopes):
-        if self.readTokens():
+    def authorize(self, scopes, refreshToken = None):
+        if not refreshToken == None:
+            
+            self.refreshToken = refreshToken
             self.refreshAcessToken()
         else:
             self.openAuthorizationURL(scopes)
@@ -129,25 +140,8 @@ class OAuth2:
             self.accessToken = tokens["access_token"]
             self.refreshToken = tokens["refresh_token"]
             self.expires = time.time() + tokens["expires_in"]
-
-            self.writeToken()
-
-    def writeToken(self):
-        file = open("token.json", "w")
-        data = {"refresh_token": self.refreshToken}
-        json.dump(data, file)
-        file.close()
-
-    def readTokens(self):
-        try:
-            file = open("token.json", "r")
-            data = json.load(file)
-
-            self.refreshToken = data["refresh_token"]
-
-            return True
-        except IOError:
-            return False
+        
+        return self.refreshToken
 
 def choseDevice():
     devices = getDevices(auth)
@@ -171,6 +165,69 @@ def getDevices(oauth2):
 
     return json.loads(r.text)
 
+def setSettings(newSettings, settings):
+    for k in newSettings:
+        if isinstance(k, dict):
+            settings[k] = setSettings(newSettings[k], settings)
+        else:
+            settings[k] = newSettings[k]
+
+    return settings
+
+def readSettings():
+    global settings
+
+    try:
+        file = open("settings.json", "r")
+        data = json.load(file)
+
+        settings = setSettings(data, settings)
+        return True
+    except IOError:
+        return False
+
+def writeSettings():
+    file = open("settings.json", "w")
+    json.dump(settings, file, indent=4)
+    file.close()
+
+def getSetting(path, settings = settings):
+    path = path.split("/", 1)
+    
+    if len(path) == 1 and path[0] in settings:
+        return settings[path[0]]
+    elif path[0] in settings:
+        return getSetting(path[1], settings[path[0]])
+    else:
+        return None
+
+def setSettingIterate(path, value, s):
+    path = path.split("/", 1)
+
+    if not path[0] in s and len(path) > 1:
+        s[path[0]] = {}
+
+    if len(path) == 1:
+        s[path[0]] = value
+    else:
+        s[path[0]] = setSettingIterate(path[1], value, s[path[0]])
+
+    return s
+
+def setSetting(path, value):
+    global settings
+    settings = setSettingIterate(path, value, settings)
+    writeSettings()
+
+def playWinMusic(oauth, device):
+    # Play track
+    r = requests.put("https://api.spotify.com/v1/me/player/play?device_id=" + device, json={"uris": ["spotify:track:0TtD91m3UCmluyHjbm5k5w"]}, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
+    
+    # Go to chorus
+    r = requests.put("https://api.spotify.com/v1/me/player/seek?device_id=" + device + "&position_ms=93000", headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
+
+    # Try to find and API to resume the old music
+
 def pauseMusic(oauth, device):
     print "Pausing music"
     r = requests.put("https://api.spotify.com/v1/me/player/pause?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
@@ -186,6 +243,17 @@ def shouldPlay(body):
     health = body["player"]["state"]["health"]
     roundPhase = body["round"]["phase"]
 
+    if body["map"]["phase"] == "gameover":
+        if body["map"]["team_ct"]["score"] == body["map"]["team_t"]["score"]:
+            return True
+
+        winner = "CT" if body["map"]["team_ct"]["score"] > body["map"]["team_t"]["score"] else "T"
+
+        if winner == body["player"]["team"]:
+            return "win"
+        else:
+            return True
+
     if not body["map"]["mode"] == "competitive":
         return True
 
@@ -198,11 +266,23 @@ def shouldPlay(body):
     return True
 
 if __name__ == "__main__":
+    readSettings()
+    
     authorizationURL = "https://accounts.spotify.com/authorize"
     tokenURL = "https://accounts.spotify.com/api/token"
  
     auth = OAuth2(Keys.clientId, Keys.clientSecret, authorizationURL, tokenURL)
+
+    refreshToken = None
+
+    if getSetting("refreshToken/enabled"):
+        refreshToken = getSetting("refreshToken/token")
+    
     print "Authorizing Spotify..."
-    auth.authorize(["user-modify-playback-state", "user-read-playback-state", "user-modify-playback-state"])
+    refreshToken = auth.authorize(["user-modify-playback-state", "user-read-playback-state", "user-modify-playback-state"], refreshToken)
+    
+    if getSetting("refreshToken/enabled"):
+        setSetting("refreshToken/token", refreshToken)    
     
     startGSIServer(auth, choseDevice())
+    

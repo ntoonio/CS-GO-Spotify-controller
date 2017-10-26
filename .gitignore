@@ -1,4 +1,4 @@
 .DS_Store
 Keys.py
-token.json
+settings.json
 *.pyc
