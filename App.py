@@ -281,4 +281,4 @@ if __name__ == "__main__":
     if getSetting("refreshToken/enabled"):
         setSetting("refreshToken/token", refreshToken)    
     
-    #startGSIServer(auth, choseDevice())
+    startGSIServer(auth, choseDevice())
