@@ -6,12 +6,14 @@ import requests
 import requests
 import base64
 import json
-import Keys
 
 playingMusic = False
-settings = {
+settings = {}
+defaultSettings = {
     "winMusic": {
-        "enabled": True
+        "enabled": True,
+        "track": "spotify:track:0TtD91m3UCmluyHjbm5k5w",
+        "startTime": 93000
     },
     "refreshToken": {
         "enabled": True
@@ -165,23 +167,12 @@ def getDevices(oauth2):
 
     return json.loads(r.text)
 
-def setSettings(newSettings, settings):
-    for k in newSettings:
-        if isinstance(k, dict):
-            settings[k] = setSettings(newSettings[k], settings)
-        else:
-            settings[k] = newSettings[k]
-
-    return settings
-
 def readSettings():
     global settings
-
     try:
         file = open("settings.json", "r")
-        data = json.load(file)
-
-        settings = setSettings(data, settings)
+        settings = json.load(file)
+        
         return True
     except IOError:
         return False
@@ -191,17 +182,22 @@ def writeSettings():
     json.dump(settings, file, indent=4)
     file.close()
 
-def getSetting(path, settings = settings):
+def getSetting(path, s = None):
+    if s == None:
+        s = settings
+
     path = path.split("/", 1)
-    
-    if len(path) == 1 and path[0] in settings:
-        return settings[path[0]]
-    elif path[0] in settings:
-        return getSetting(path[1], settings[path[0]])
+
+    if len(path) == 1 and path[0] in s:
+        return s[path[0]]
+    elif path[0] in s:
+        return getSetting(path[1], s[path[0]])
+    elif path[0] in defaultSettings:
+        return getSetting(path[1], defaultSettings[path[0]])
     else:
         return None
 
-def setSettingIterate(path, value, s):
+def _setSettingRecursive(path, value, s):
     path = path.split("/", 1)
 
     if not path[0] in s and len(path) > 1:
@@ -210,21 +206,22 @@ def setSettingIterate(path, value, s):
     if len(path) == 1:
         s[path[0]] = value
     else:
-        s[path[0]] = setSettingIterate(path[1], value, s[path[0]])
+        s[path[0]] = _setSettingRecursive(path[1], value, s[path[0]])
 
     return s
 
 def setSetting(path, value):
     global settings
-    settings = setSettingIterate(path, value, settings)
+    settings = _setSettingRecursive(path, value, settings)
+    
     writeSettings()
 
 def playWinMusic(oauth, device):
     # Play track
-    r = requests.put("https://api.spotify.com/v1/me/player/play?device_id=" + device, json={"uris": ["spotify:track:0TtD91m3UCmluyHjbm5k5w"]}, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
+    r = requests.put("https://api.spotify.com/v1/me/player/play?device_id=" + device, json={"uris": [getSetting("winMusic/track")]}, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
     
     # Go to chorus
-    r = requests.put("https://api.spotify.com/v1/me/player/seek?device_id=" + device + "&position_ms=93000", headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
+    r = requests.put("https://api.spotify.com/v1/me/player/seek?device_id=" + device + "&position_ms=" + getSetting("winMusic/startTime"), headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
 
     # Try to find and API to resume the old music
 
@@ -271,10 +268,10 @@ if __name__ == "__main__":
     authorizationURL = "https://accounts.spotify.com/authorize"
     tokenURL = "https://accounts.spotify.com/api/token"
  
-    auth = OAuth2(Keys.clientId, Keys.clientSecret, authorizationURL, tokenURL)
+    auth = OAuth2(getSetting("spotifyAPI/clientId"), getSetting("spotifyAPI/clientSecret"), authorizationURL, tokenURL)
 
     refreshToken = None
-
+    
     if getSetting("refreshToken/enabled"):
         refreshToken = getSetting("refreshToken/token")
     
@@ -284,5 +281,4 @@ if __name__ == "__main__":
     if getSetting("refreshToken/enabled"):
         setSetting("refreshToken/token", refreshToken)    
     
-    startGSIServer(auth, choseDevice())
-    
+    #startGSIServer(auth, choseDevice())
