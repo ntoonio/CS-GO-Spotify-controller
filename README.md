@@ -19,10 +19,14 @@ A program that pauses your Spotify music when you're alive in a round. But plays
 ### refreshToken
 
 - `enabled` dicides wheter you want to save the refresh token or re-authenticate on each launch
-- `token` where the application saves to refresh token
+- `token` where the application saves your refresh token
 
 ### winMusic
 
 - `enabled` diced wheter you want a special track to play when you win a game
 - `track` the Spotify URI of the track that should be played
-- `startTime` the timestamp of where the track should start pllaying from 
+- `startTime` the timestamp of where the track should start pllaying from
+
+### playbackDevice
+- `mode` either `"active"` which will choose the active spotify device, `"choose"` which will let you choose from all of your spotify devices, or `"given"` which will play from the given `deviceId` or let you choose one if none is set.
+- `deviceId` where the application saves your device id
