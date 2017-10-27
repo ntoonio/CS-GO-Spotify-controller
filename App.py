@@ -145,16 +145,53 @@ class OAuth2:
         
         return self.refreshToken
 
-def choseDevice():
+def getDeivce(auth):
+    chooseMode = getSetting("playbackDevice/mode")
+
+    if chooseMode == "active":
+        devices = getDevices(auth)
+        if not "devices" in devices:
+            print "No active devices"
+            exit()
+
+        for d in devices["devices"]:
+            if d["is_active"]:
+                print "active", d["id"]
+                return d["id"]
+        
+        print "No active device"
+        exit()
+    elif chooseMode == "given":
+        deviceId = getSetting("playbackDevice/deviceId")
+
+        if not deviceId:
+            deviceId = choseDevice(auth)
+            setSetting("playbackDevice/deviceId", deviceId)
+
+        return deviceId
+    else:
+        return choseDevice(auth)
+
+def choseDevice(auth):
     devices = getDevices(auth)
-     
+
     if not "devices" in devices:
         print "No active devices"
         exit()
 
+    i = 1
     for d in devices["devices"]:
-        if d["is_active"]:
-            return d["id"]
+        print i, d["name"], d["id"]
+        i += 1
+        
+    print "Enter the number for the device you want to start playback from"
+    index = int(raw_input()) - 1
+    if len(devices["devices"]) < index:
+        print "Chosen device is out of bounds"
+        exit()
+
+    return devices["devices"][index]["id"]
+    
 
 def startGSIServer(oauth, deviceId):
     print "Starting GSI server"
@@ -281,4 +318,4 @@ if __name__ == "__main__":
     if getSetting("refreshToken/enabled"):
         setSetting("refreshToken/token", refreshToken)    
     
-    startGSIServer(auth, choseDevice())
+    startGSIServer(auth, getDeivce(auth))
