@@ -1,5 +1,5 @@
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-import urlparse
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import urllib.parse as urlparse
 import time
 import webbrowser
 import requests
@@ -43,7 +43,7 @@ def MakeGetAuthorizationCodeHandler(OAuth2Class):
     return GetAuthorizationCodeHandler
 
 def MakeGameStateIntegrationHandler(OAuth2Class, deviceId):
-    class GetAuthorizationCodeHandler(BaseHTTPRequestHandler):
+    class GetGameStateHandler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             return
  
@@ -51,8 +51,8 @@ def MakeGameStateIntegrationHandler(OAuth2Class, deviceId):
             global playingMusic
 
             parsedPath = urlparse.urlparse(self.path)
-           
-            contentLength = int(self.headers.getheader("content-length", 0))
+            
+            contentLength = int(self.headers["content-length"])
             body = json.loads(self.rfile.read(contentLength))
  
             shouldBePlay = shouldPlay(body)
@@ -71,7 +71,7 @@ def MakeGameStateIntegrationHandler(OAuth2Class, deviceId):
 
             return
  
-    return GetAuthorizationCodeHandler
+    return GetGameStateHandler
  
 class OAuth2:
     def __init__(self, clientId, clientSecret, authorizationURL, tokenURL):
@@ -97,7 +97,7 @@ class OAuth2:
  
         server = HTTPServer(("", 4074), MakeGetAuthorizationCodeHandler(self))
        
-        print "Waiting for authorization code"
+        print("Waiting for authorization code")
         while self.authorizationCode == "":
             server.handle_request()
  
@@ -106,13 +106,13 @@ class OAuth2:
     def getTokens(self):
         data = {"grant_type": "authorization_code", "code": self.authorizationCode, "redirect_uri": "http://localhost:4074/"}
         
-        r = requests.post(self.tokenURL, data=data, headers={"Authorization": "Basic " + base64.b64encode(self.clientId + ":" + self.clientSecret)})
+        r = requests.post(self.tokenURL, data=data, headers={"Authorization": "Basic " + base64.b64encode((self.clientId + ":" + self.clientSecret).encode()).decode()})
 
         return json.loads(r.text)
  
     def getAccessToken(self, secondTry = False):
         if time.time() >= self.expires and not secondTry:
-            print "Access token expired"
+            prin("Access token expired")
             self.refreshAcessToken()
             return self.getAccessToken(secondTry = True)
 
@@ -121,14 +121,14 @@ class OAuth2:
     def refreshAcessToken(self):
         data = {"grant_type": "refresh_token", "refresh_token": self.refreshToken}
         
-        r = requests.post(self.tokenURL, data=data, headers={"Authorization": "Basic " + base64.b64encode(self.clientId + ":" + self.clientSecret)})
+        r = requests.post(self.tokenURL, data=data, headers={"Authorization": "Basic " + base64.b64encode((self.clientId + ":" + self.clientSecret).encode()).decode()})
 
         tokens = json.loads(r.text)
         
         self.accessToken = tokens["access_token"]
         self.expires = time.time() + tokens["expires_in"]
 
-        print "Refreshed acceses token"
+        print("Refreshed acceses token")
 
     def authorize(self, scopes, refreshToken = None):
         if not refreshToken == None:
@@ -151,15 +151,15 @@ def getDeivce(auth):
     if chooseMode == "active":
         devices = getDevices(auth)
         if not "devices" in devices:
-            print "No active devices"
+            print("No active devices")
             exit()
 
         for d in devices["devices"]:
             if d["is_active"]:
-                print "active", d["id"]
+                print("active", d["id"])
                 return d["id"]
         
-        print "No active device"
+        print("No active device")
         exit()
     elif chooseMode == "given":
         deviceId = getSetting("playbackDevice/deviceId")
@@ -176,25 +176,25 @@ def choseDevice(auth):
     devices = getDevices(auth)
 
     if not "devices" in devices:
-        print "No active devices"
+        print("No active devices")
         exit()
 
     i = 1
     for d in devices["devices"]:
-        print i, d["name"], d["id"]
+        print(i, d["name"], d["id"])
         i += 1
         
-    print "Enter the number for the device you want to start playback from"
+    print("Enter the number for the device you want to start playback from")
     index = int(raw_input()) - 1
     if len(devices["devices"]) < index:
-        print "Chosen device is out of bounds"
+        print("Chosen device is out of bounds")
         exit()
 
     return devices["devices"][index]["id"]
     
 
 def startGSIServer(oauth, deviceId):
-    print "Starting GSI server"
+    print("Starting GSI server")
     server = HTTPServer(("", 27375), MakeGameStateIntegrationHandler(oauth, deviceId))
     
     server.serve_forever()
@@ -263,11 +263,11 @@ def playWinMusic(oauth, device):
     # Try to find and API to resume the old music
 
 def pauseMusic(oauth, device):
-    print "Pausing music"
+    print("Pausing music")
     r = requests.put("https://api.spotify.com/v1/me/player/pause?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
 
 def resumeMusic(oauth, device):
-    print "Resuming music"
+    print("Resuming music")
     r = requests.put("https://api.spotify.com/v1/me/player/play?device_id=" + device, headers={"Accept": "application/json", "Authorization": "Bearer " + oauth.getAccessToken()})
  
 def shouldPlay(body):
@@ -312,7 +312,7 @@ if __name__ == "__main__":
     if getSetting("refreshToken/enabled"):
         refreshToken = getSetting("refreshToken/token")
     
-    print "Authorizing Spotify..."
+    print("Authorizing Spotify...")
     refreshToken = auth.authorize(["user-modify-playback-state", "user-read-playback-state", "user-modify-playback-state"], refreshToken)
     
     if getSetting("refreshToken/enabled"):
